@@ -1,0 +1,68 @@
+services:
+  dp_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - APP_HOST=${APP_HOST}
+      - APP_PORT=${APP_PORT}
+      - DB_URL=${DB_URL}
+      - DB_NAME=${DB_NAME}
+      - KAFKA_HOST=${KAFKA_HOST}
+      - KAFKA_PORT=${KAFKA_PORT}
+      - KAFKA_TOPIC=${KAFKA_TOPIC}
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - kafka
+    restart: unless-stopped
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: pg_isready -d $${POSTGRES_DB} -U
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+  kafka:
+    image: confluentinc/cp-kafka:7.3.2
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka_data:/data
+    environment:
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_ADVERTISED_HOST_NAME: kafka
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    healthcheck:
+      test: kafka-topics --bootstrap-server broker:9092 --list
+      interval: 30s
+      timeout: 10s
+      retries: 3
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.2
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    healthcheck:
+      test: nc -z localhost 2181 || exit -1
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  pg_data:
+  kafka_data:
